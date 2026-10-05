@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  menuItems MenuItem[]
+}
+
+model KitchenStation {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  menuItems MenuItem[]
+  orderItems OrderItem[]
+}
+
+model MenuItem {
+  id              String       @id @default(cuid())
+  name            String
+  description     String?
+  price           Float
+  available       Boolean      @default(true)
+  estimatedTime   Int          // in minutes
+  categoryId      String
+  stationId       String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  category        Category     @relation(fields: [categoryId], references: [id])
+  station         KitchenStation @relation(fields: [stationId], references: [id])
+  orderItems      OrderItem[]
+  recipeItems     RecipeItem[]
+}
+
+model Order {
+  id              String       @id @default(cuid())
+  customerName    String?
+  tableNumber     String?
+  status          OrderStatus  @default(CREATED)
+  totalAmount     Float        @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  items           OrderItem[]
+  statusHistory   OrderStatusHistory[]
+}
+
+enum OrderStatus {
+  CREATED
+  QUEUED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+model OrderItem {
+  id              String       @id @default(cuid())
+  orderId         String
+  menuItemId      String
+  stationId       String
+  quantity        Int
+  status          OrderItemStatus @default(QUEUED)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem        MenuItem     @relation(fields: [menuItemId], references: [id])
+  station         KitchenStation @relation(fields: [stationId], references: [id])
+}
+
+enum OrderItemStatus {
+  QUEUED
+  PREPARING
+  READY
+  CANCELLED
+}
+
+model OrderStatusHistory {
+  id              String       @id @default(cuid())
+  orderId         String
+  fromStatus      OrderStatus?
+  toStatus        OrderStatus
+  changedAt       DateTime     @default(now())
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Ingredient {
+  id              String       @id @default(cuid())
+  name            String       @unique
+  unit            String
+  currentStock    Float
+  minStock        Float
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  recipeItems     RecipeItem[]
+  movements       InventoryMovement[]
+}
+
+model RecipeItem {
+  id              String       @id @default(cuid())
+  menuItemId      String
+  ingredientId    String
+  requiredQuantity Float
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  menuItem        MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  ingredient      Ingredient   @relation(fields: [ingredientId], references: [id])
+  
+  @@unique([menuItemId, ingredientId])
+}
+
+model InventoryMovement {
+  id              String       @id @default(cuid())
+  ingredientId    String
+  quantityChange  Float
+  reason          MovementReason
+  referenceId     String?      // Order ID or other reference
+  createdAt       DateTime     @default(now())
+  ingredient      Ingredient   @relation(fields: [ingredientId], references: [id])
+}
+
+enum MovementReason {
+  ORDER_CONFIRMED
+  STOCK_ADJUSTMENT
+  STOCK_CORRECTION
+  INITIAL_STOCK
+}
