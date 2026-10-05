@@ -162,15 +162,12 @@ router.post('/', async (req, res) => {
         }))
       );
 
-      // Update order with items and total
+      // Update order with total and status
       const updatedOrder = await tx.order.update({
         where: { id: newOrder.id },
         data: {
           totalAmount: total,
           status: OrderStatus.QUEUED,
-          items: {
-            connect: { id: orderItems[0].id },
-          },
         },
         include: {
           items: {
@@ -274,7 +271,15 @@ router.patch('/:orderId/items/:itemId/status', async (req, res) => {
 // Cancel order
 router.post('/:id/cancel', async (req, res) => {
   try {
-    const order = await prisma.$transaction(async (tx) => {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const cancelledOrder = await prisma.$transaction(async (tx) => {
       const updated = await tx.order.update({
         where: { id: req.params.id },
         data: { status: OrderStatus.CANCELLED },
@@ -300,7 +305,7 @@ router.post('/:id/cancel', async (req, res) => {
       await tx.orderStatusHistory.create({
         data: {
           orderId: req.params.id,
-          fromStatus: updated.status,
+          fromStatus: order.status,
           toStatus: OrderStatus.CANCELLED,
         },
       });
@@ -308,7 +313,7 @@ router.post('/:id/cancel', async (req, res) => {
       return updated;
     });
 
-    res.json(order);
+    res.json(cancelledOrder);
   } catch (error) {
     res.status(500).json({ error: 'Failed to cancel order' });
   }
