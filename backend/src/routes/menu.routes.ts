@@ -23,6 +23,18 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get categories (must be defined before /:id to avoid route conflict)
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      orderBy: { name: 'asc' },
+    });
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
 // Get single menu item
 router.get('/:id', async (req, res) => {
   try {
@@ -88,18 +100,6 @@ router.delete('/:id', async (req, res) => {
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete menu item' });
-  }
-});
-
-// Get categories
-router.get('/categories', async (req, res) => {
-  try {
-    const categories = await prisma.category.findMany({
-      orderBy: { name: 'asc' },
-    });
-    res.json(categories);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 

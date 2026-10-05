@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { Router } from './routes';
+import router from './routes';
 
 dotenv.config();
 
@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/api', Router);
+app.use('/api', router);
 
 // Health check
 app.get('/api/health', async (req, res) => {
