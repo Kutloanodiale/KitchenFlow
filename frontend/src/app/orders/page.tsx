@@ -60,6 +60,8 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Create order form state
   const [customerName, setCustomerName] = useState('');
@@ -100,6 +102,9 @@ export default function OrdersPage() {
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setSuccessMessage(null);
+    
     try {
       const response = await fetch('http://localhost:4000/api/orders', {
         method: 'POST',
@@ -116,14 +121,25 @@ export default function OrdersPage() {
         throw new Error(error.error || 'Failed to create order');
       }
 
-      // Reset form and refresh orders
+      const newOrder = await response.json();
+      
+      // Reset form and go back to list view
       setShowCreateForm(false);
       setCustomerName('');
       setTableNumber('');
       setOrderItems([]);
+      setSelectedOrder(null); // Clear selected order to show the list
+      
+      // Refresh orders list
       await fetchOrders();
+      
+      // Show success message and clear it after 3 seconds
+      setSuccessMessage(`Order #${newOrder.id.slice(-6)} created successfully!`);
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create order');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -185,7 +201,17 @@ export default function OrdersPage() {
         throw new Error(error.error || 'Failed to update item status');
       }
 
+      // Refresh the orders list
       await fetchOrders();
+
+      // Also refresh the selected order detail view so changes appear immediately
+      if (selectedOrder?.id === orderId) {
+        const updatedRes = await fetch(`http://localhost:4000/api/orders/${orderId}`);
+        if (updatedRes.ok) {
+          const updated = await updatedRes.json();
+          setSelectedOrder(updated);
+        }
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update item status');
     }
@@ -226,6 +252,18 @@ export default function OrdersPage() {
 
   return (
     <div>
+      {successMessage && (
+        <div style={{
+          background: '#e8f5e9',
+          color: '#2e7d32',
+          padding: '1rem',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          border: '1px solid #a5d6a7',
+        }}>
+          {successMessage}
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1>Orders</h1>
         <button className="primary" onClick={() => setShowCreateForm(!showCreateForm)}>
@@ -296,8 +334,8 @@ export default function OrdersPage() {
               )}
             </div>
 
-            <button type="submit" className="primary" disabled={orderItems.length === 0}>
-              Create Order
+            <button type="submit" className="primary" disabled={orderItems.length === 0 || submitting}>
+              {submitting ? 'Creating...' : 'Create Order'}
             </button>
           </form>
         </div>
