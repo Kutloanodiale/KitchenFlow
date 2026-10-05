@@ -34,6 +34,76 @@ async function main() {
     prisma.ingredient.create({ data: { name: 'Soda Syrup', unit: 'liters', currentStock: 15, minStock: 3 } }),
   ]);
 
+  // Create menu items
+  const menuItems = await Promise.all([
+    prisma.menuItem.create({
+      data: {
+        name: 'Classic Burger',
+        description: 'Beef patty with lettuce, tomato, and cheese',
+        price: 12.99,
+        estimatedTime: 15,
+        categoryId: categories[1].id, // Main Course
+        stationId: stations[0].id, // GRILL
+        available: true,
+      },
+    }),
+    prisma.menuItem.create({
+      data: {
+        name: 'Chicken Sandwich',
+        description: 'Grilled chicken breast with fresh vegetables',
+        price: 10.99,
+        estimatedTime: 12,
+        categoryId: categories[1].id, // Main Course
+        stationId: stations[0].id, // GRILL
+        available: true,
+      },
+    }),
+    prisma.menuItem.create({
+      data: {
+        name: 'French Fries',
+        description: 'Crispy golden fries',
+        price: 4.99,
+        estimatedTime: 8,
+        categoryId: categories[0].id, // Appetizers
+        stationId: stations[1].id, // FRYER
+        available: true,
+      },
+    }),
+    prisma.menuItem.create({
+      data: {
+        name: 'Cola',
+        description: 'Refreshing cola drink',
+        price: 2.50,
+        estimatedTime: 2,
+        categoryId: categories[3].id, // Beverages
+        stationId: stations[2].id, // DRINKS
+        available: true,
+      },
+    }),
+    prisma.menuItem.create({
+      data: {
+        name: 'Caesar Salad',
+        description: 'Fresh romaine lettuce with Caesar dressing',
+        price: 8.99,
+        estimatedTime: 10,
+        categoryId: categories[0].id, // Appetizers
+        stationId: stations[3].id, // COLD_PREP
+        available: true,
+      },
+    }),
+    prisma.menuItem.create({
+      data: {
+        name: 'Chocolate Cake',
+        description: 'Rich chocolate layer cake',
+        price: 6.99,
+        estimatedTime: 5,
+        categoryId: categories[2].id, // Desserts
+        stationId: stations[4].id, // DESSERT
+        available: true,
+      },
+    }),
+  ]);
+
   console.log('Seed completed successfully');
 }
 
