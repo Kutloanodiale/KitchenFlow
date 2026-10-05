@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+backend/node_modules
+frontend/node_modules
+frontend/.next
+frontend/out
+
+# Testing
+coverage
+backend/coverage
+
+# Development
+.git
+.gitignore
+.env
+.env.local
+*.md
+.vscode
+.idea
+
+# Build artifacts
+dist
+build
+*.log
+
+# Docker
+Dockerfile
+compose.yml
+.dockerignore
+
+# Misc
+.DS_Store
+Thumbs.db
