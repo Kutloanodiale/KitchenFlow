@@ -59,6 +59,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/frontend/next.config.js ./fronten
 # Copy root package files
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
 
+# Create startup script
+RUN echo '#!/bin/sh\n\
+cd /app/backend\n\
+echo "Running database migrations..."\n\
+npx prisma db push --skip-generate\n\
+echo "Starting KitchenFlow..."\n\
+cd /app\n\
+cd backend && node dist/server.js &\n\
+cd /app/frontend && npm start\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
 # Switch to non-root user
 USER nextjs
 
@@ -71,4 +82,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start both services
-CMD ["sh", "-c", "cd backend && node dist/server.js & cd frontend && npm start"]
+CMD ["/app/start.sh"]

@@ -8,12 +8,19 @@ frontend/out
 # Testing
 coverage
 backend/coverage
+backend/tests
+*.test.ts
+*.test.js
+jest.config.js
 
 # Development
 .git
 .gitignore
 .env
 .env.local
+backend/.env
+backend/.env.local
+frontend/.env.local
 *.md
 .vscode
 .idea
@@ -27,6 +34,14 @@ build
 Dockerfile
 compose.yml
 .dockerignore
+
+# Documentation
+README.md
+DATABASE.md
+DOCKER.md
+TESTING.md
+AI-USAGE.md
+THIRD-PARTY.md
 
 # Misc
 .DS_Store

@@ -1,130 +1,328 @@
-# Docker Documentation
+# Docker Deployment Guide
 
 ## Overview
 
-KitchenFlow uses Docker to containerize the application for consistent deployment. The setup includes a multi-stage Dockerfile for optimized production images and a Docker Compose configuration for orchestrating the application with Supabase PostgreSQL.
+KitchenFlow can be deployed using Docker and Docker Compose. This guide covers containerized production deployment with PostgreSQL.
 
-## Architecture
+## Prerequisites
 
-Since KitchenFlow uses Supabase as the managed PostgreSQL database, the Docker setup focuses on containerizing the application itself. The database runs on Supabase's cloud infrastructure.
+- Docker Engine 20.10+
+- Docker Compose 2.0+
 
-## Dockerfile
+## Quick Start
 
-The Dockerfile uses a multi-stage build to create an optimized production image:
-
-1. **Dependencies stage:** Installs all dependencies using `npm ci` for reproducible builds.
-2. **Build stage:** Compiles the TypeScript code and builds the Next.js application.
-3. **Production stage:** Contains only the necessary runtime files, reducing image size.
-
-Key features:
-- Uses Node.js 20 LTS as the base image.
-- Runs as a non-root user for security.
-- Uses `npm ci` for deterministic dependency installation.
-- Excludes development dependencies from the final image.
-- Does not copy `.env` files with real credentials into the image.
-
-## Docker Compose
-
-The `compose.yml` file defines the application service:
-
-```yaml
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-    ports:
-      - "3000:3000"
-    depends_on:
-      - db-healthcheck
-    restart: unless-stopped
-
-  db-healthcheck:
-    image: postgres:16
-    command: ["pg_isready", "-h", "${DB_HOST}", "-p", "5432", "-U", "${DB_USER}"]
-    environment:
-      PGPASSWORD: ${DB_PASSWORD}
-```
-
-**Note:** Since Supabase manages the PostgreSQL database, the Docker Compose setup primarily containerizes the application. A healthcheck service verifies database connectivity.
-
-## Network Relationship
-
-The application connects to Supabase PostgreSQL over the public internet using the `DATABASE_URL` environment variable. The connection string uses Supabase's hostname (not localhost).
-
-## Environment Variables
-
-| Variable      | Description                          | Required |
-|---------------|--------------------------------------|----------|
-| DATABASE_URL  | Supabase PostgreSQL connection string| Yes      |
-| NODE_ENV      | Environment (production/development) | Yes      |
-| PORT          | Application port (default: 3000)     | No       |
-| BACKEND_PORT  | Backend API port (default: 4000)     | No       |
-
-**Important:** Never commit real credentials to Git. Use `.env.example` as a template and provide actual values through environment variables or a local `.env` file (which is gitignored).
-
-## Commands
-
-### Build the image
+### 1. Clone the Repository
 
 ```bash
-docker compose build
+git clone <repository-url>
+cd KitchenFlow
 ```
 
-### Start the application
+### 2. Start the Application
+
+Run the following command to build and start all services:
 
 ```bash
-docker compose up -d
+docker compose up --build
 ```
 
-### View logs
+This command:
+- Builds the application Docker image
+- Pulls the PostgreSQL 16 image
+- Creates a named volume for database persistence
+- Starts both application and database containers
+- Waits for database to be healthy before starting the application
+- Runs database migrations automatically
 
-```bash
-docker compose logs -f
-```
+### 3. Access the Application
 
-### Stop the application
+Once the containers are running:
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:4000
+- **API Health Check**: http://localhost:4000/api/health
+
+### 4. Stop the Application
 
 ```bash
 docker compose down
 ```
 
-### Restart the application
+To stop and remove the database volume (⚠️ **this deletes all data**):
 
 ```bash
-docker compose restart
+docker compose down -v
 ```
 
-### Verify configuration
+## Architecture
+
+### Services
+
+#### Application Service (`app`)
+- **Image**: Built from `Dockerfile`
+- **Ports**: 
+  - 3000 (Frontend)
+  - 4000 (Backend API)
+- **Environment**:
+  - `NODE_ENV=production`
+  - `DATABASE_URL` configured to connect to `db` service
+- **Depends on**: `db` service with `service_healthy` condition
+- **User**: Runs as non-root user (`nextjs:nodejs`)
+
+#### Database Service (`db`)
+- **Image**: `postgres:16-alpine`
+- **Port**: Not published (internal network only)
+- **Environment**:
+  - `POSTGRES_DB=kitchenflow`
+  - `POSTGRES_USER=kitchenflow`
+  - `POSTGRES_PASSWORD=kitchenflow_secret`
+- **Volume**: `kitchenflow-data` for persistent storage
+- **Healthcheck**: Uses `pg_isready` to verify database is ready
+
+### Network
+
+Both services communicate over a private Docker network (`kitchenflow-network`). The database is not accessible from the host machine, only from the application container.
+
+### Volumes
+
+- **kitchenflow-data**: Persistent PostgreSQL data volume
+  - Survives container recreation
+  - Located at `/var/lib/postgresql/data` in the database container
+  - Created automatically on first run
+
+## Configuration
+
+### Environment Variables
+
+The application uses the following environment variables (configured in `compose.yml`):
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `NODE_ENV` | `production` | Runtime environment |
+| `DATABASE_URL` | `postgresql://kitchenflow:kitchenflow_secret@db:5432/kitchenflow` | PostgreSQL connection string |
+| `BACKEND_PORT` | `4000` | Backend API port |
+| `PORT` | `3000` | Frontend port |
+
+### Changing Credentials
+
+To change database credentials:
+
+1. Edit `compose.yml`:
+
+```yaml
+services:
+  app:
+    environment:
+      DATABASE_URL: postgresql://<user>:<password>@db:5432/<database>
+  
+  db:
+    environment:
+      POSTGRES_DB: <database>
+      POSTGRES_USER: <user>
+      POSTGRES_PASSWORD: <password>
+```
+
+2. Remove the existing volume (⚠️ **this deletes all data**):
 
 ```bash
-docker compose config
+docker compose down -v
+```
+
+3. Restart the application:
+
+```bash
+docker compose up -d
+```
+
+## Database Migrations
+
+Database migrations are run automatically when the application starts. The startup script executes:
+
+```bash
+npx prisma db push --skip-generate
+```
+
+This ensures the database schema is up-to-date before the application starts.
+
+### Manual Migration
+
+To run migrations manually:
+
+```bash
+docker compose exec app sh -c "cd backend && npx prisma db push"
+```
+
+## Viewing Logs
+
+### All Services
+
+```bash
+docker compose logs -f
+```
+
+### Specific Service
+
+```bash
+# Application logs
+docker compose logs -f app
+
+# Database logs
+docker compose logs -f db
+```
+
+## Health Checks
+
+### Application Health
+
+The application has a health check that verifies the backend API is responding:
+
+```bash
+docker compose ps
+```
+
+Look for `healthy` in the STATUS column.
+
+### Database Health
+
+The database uses `pg_isready` for health checks:
+
+```bash
+docker compose exec db pg_isready -U kitchenflow -d kitchenflow
+```
+
+## Data Persistence
+
+### Database Data
+
+Database data is stored in the `kitchenflow-data` named volume. This volume persists across container restarts and recreations.
+
+To backup the database:
+
+```bash
+docker compose exec db pg_dump -U kitchenflow kitchenflow > backup.sql
+```
+
+To restore from backup:
+
+```bash
+cat backup.sql | docker compose exec -T db psql -U kitchenflow kitchenflow
+```
+
+### Viewing Volume Information
+
+```bash
+docker volume ls | grep kitchenflow
 ```
 
 ## Troubleshooting
 
-### Application cannot connect to database
+### Application Won't Start
 
-- Verify `DATABASE_URL` is correctly set in your environment.
-- Check that Supabase project is active and accessible.
-- Ensure network connectivity to Supabase hosts.
+**Problem**: Application container exits immediately
 
-### Port already in use
+**Solution**: Check logs for errors:
 
-- Change the port mapping in `compose.yml` or stop the conflicting service.
-- Example: Change `"3000:3000"` to `"3001:3000"`.
+```bash
+docker compose logs app
+```
 
-### Build fails
+Common issues:
+- Database not ready: Check `docker compose logs db` for database health
+- Port already in use: Change port mapping in `compose.yml`
+- Missing environment variables: Verify `compose.yml` configuration
 
-- Ensure Docker is running and you have sufficient permissions.
-- Clear Docker cache: `docker system prune -a`.
-- Check that all required files are present and `.dockerignore` is not excluding necessary files.
+### Database Connection Errors
 
-### Health check fails
+**Problem**: Application cannot connect to database
 
-- Verify Supabase database is operational.
-- Check that the healthcheck endpoint `/api/health` returns a success response.
-- Review application logs for database connection errors.
+**Solution**: 
+1. Verify database is healthy: `docker compose ps`
+2. Check DATABASE_URL uses `db` as host (not `localhost`)
+3. Ensure both services are on the same network
+
+### Port Already in Use
+
+**Problem**: Port 3000 or 4000 is already in use
+
+**Solution**: Change port mapping in `compose.yml`:
+
+```yaml
+ports:
+  - "8080:3000"  # Map host port 8080 to container port 3000
+  - "8081:4000"  # Map host port 8081 to container port 4000
+```
+
+### Database Volume Issues
+
+**Problem**: Database starts with old data or schema conflicts
+
+**Solution**: Remove the volume and restart (⚠️ **this deletes all data**):
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+## Production Considerations
+
+### Security
+
+1. **Change default credentials** in `compose.yml`
+2. **Use environment files** for sensitive data:
+   ```yaml
+   env_file:
+     - .env.production
+   ```
+3. **Don't commit** `.env` files to version control
+4. **Use secrets management** for production deployments
+
+### Performance
+
+1. **Resource limits**: Add resource constraints to services:
+   ```yaml
+   deploy:
+     resources:
+       limits:
+         cpus: '1'
+         memory: 1G
+   ```
+
+2. **Connection pooling**: Consider adding PgBouncer for high-traffic deployments
+
+### Monitoring
+
+1. **Health checks**: Already configured for both services
+2. **Logging**: Use centralized logging (ELK, Loki, etc.)
+3. **Metrics**: Consider adding Prometheus + Grafana
+
+## Development with Docker
+
+For development with hot-reload, use the local development setup instead:
+
+```bash
+npm install
+npm run dev
+```
+
+See [README.md](README.md) for development setup instructions.
+
+## Docker Compose Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `docker compose up --build` | Build and start all services |
+| `docker compose up -d` | Start services in background |
+| `docker compose down` | Stop and remove containers |
+| `docker compose down -v` | Stop and remove containers + volumes |
+| `docker compose logs -f` | Follow logs from all services |
+| `docker compose ps` | Show container status |
+| `docker compose restart` | Restart all services |
+| `docker compose exec app sh` | Open shell in application container |
+| `docker compose exec db psql` | Open PostgreSQL shell |
+
+## Support
+
+For issues related to:
+- **Application logic**: See [README.md](README.md)
+- **Database schema**: See [DATABASE.md](DATABASE.md)
+- **Testing**: See [TESTING.md](TESTING.md)

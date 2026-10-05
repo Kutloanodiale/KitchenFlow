@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -8,12 +6,15 @@ services:
     container_name: kitchenflow-app
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: 3000
+      DATABASE_URL: postgresql://kitchenflow:kitchenflow_secret@db:5432/kitchenflow
       BACKEND_PORT: 4000
+      PORT: 3000
     ports:
       - "3000:3000"
       - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - kitchenflow-network
@@ -23,6 +24,29 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: kitchenflow-db
+    environment:
+      POSTGRES_DB: kitchenflow
+      POSTGRES_USER: kitchenflow
+      POSTGRES_PASSWORD: kitchenflow_secret
+    volumes:
+      - kitchenflow-data:/var/lib/postgresql/data
+    networks:
+      - kitchenflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kitchenflow -d kitchenflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  kitchenflow-data:
+    name: kitchenflow-data
 
 networks:
   kitchenflow-network:
