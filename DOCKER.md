@@ -1,5 +1,7 @@
 # Docker Deployment Guide
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 ## Overview
 
 KitchenFlow can be deployed using Docker and Docker Compose. This guide covers containerized production deployment with PostgreSQL.

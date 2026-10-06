@@ -1,5 +1,7 @@
 # Testing Guide
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 ## Overview
 
 KitchenFlow includes comprehensive automated tests that verify real behavior across the application. All tests use an isolated test database and can be run with a single command.

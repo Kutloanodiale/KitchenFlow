@@ -1,5 +1,7 @@
 # Third-Party Dependencies
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 This document lists all important third-party libraries and packages used in KitchenFlow, along with their purpose and role in the project.
 
 ## Runtime Dependencies

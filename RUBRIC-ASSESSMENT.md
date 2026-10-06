@@ -1,5 +1,7 @@
 # Grading Rubric Self-Assessment
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 This document verifies KitchenFlow meets all "Complete" criteria across all categories.
 
 ---

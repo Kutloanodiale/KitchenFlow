@@ -1,5 +1,7 @@
 # AI Usage Documentation
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 This document records meaningful AI-assisted planning, coding, and debugging interactions throughout the KitchenFlow project development.
 
 ## Overview

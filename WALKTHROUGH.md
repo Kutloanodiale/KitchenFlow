@@ -1,5 +1,7 @@
 # Functional Walkthrough Guide
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 This document provides a step-by-step walkthrough demonstrating all core functionality works from a clean clone.
 
 ## Prerequisites

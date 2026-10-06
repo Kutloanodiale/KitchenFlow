@@ -1,5 +1,7 @@
 # KitchenFlow - Restaurant Operations & Order Management System
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 KitchenFlow is a comprehensive restaurant operations and order management system designed to streamline kitchen workflows, track orders in real-time, manage inventory, and provide analytics for restaurant operations.
 
 ## 📋 Project Overview
@@ -413,6 +415,8 @@ npx prisma generate
 - **[TESTING.md](TESTING.md)** - Testing documentation
 - **[THIRD-PARTY.md](THIRD-PARTY.md)** - Third-party dependencies
 - **[AI-USAGE.md](AI-USAGE.md)** - AI-assisted development log
+- **[WALKTHROUGH.md](WALKTHROUGH.md)** - Functional walkthrough guide (12 steps)
+- **[RUBRIC-ASSESSMENT.md](RUBRIC-ASSESSMENT.md)** - Rubric self-assessment
 
 ## 📄 License
 

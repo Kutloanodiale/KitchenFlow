@@ -1,5 +1,7 @@
 # KitchenFlow - Database Documentation
 
+**Repository:** [https://github.com/Kutloanodiale/KitchenFlow](https://github.com/Kutloanodiale/KitchenFlow)
+
 ## Overview
 
 KitchenFlow uses a PostgreSQL database managed through Prisma ORM. The database is hosted on Supabase for production and can be run locally for development.
