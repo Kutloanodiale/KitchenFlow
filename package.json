@@ -19,7 +19,14 @@
     "db:push": "cd backend && npx prisma db push",
     "db:studio": "cd backend && npx prisma studio"
   },
-  "keywords": ["restaurant", "kitchen", "order-management"],
+  "keywords": [
+    "restaurant",
+    "kitchen",
+    "order-management"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
 }
