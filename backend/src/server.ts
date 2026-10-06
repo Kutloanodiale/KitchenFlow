@@ -15,14 +15,39 @@ app.use(express.json());
 // Routes
 app.use('/api', router);
 
-// Health check
+// Health check with diagnostics
 app.get('/api/health', async (req, res) => {
+  const healthcheck = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    database: 'unknown',
+    version: process.env.npm_package_version || '1.0.0',
+  };
+
   try {
     const { default: prisma } = await import('./lib/prisma');
+    
+    // Test database connection
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', database: 'connected' });
+    healthcheck.database = 'connected';
+    
+    // Get database info (safe, no secrets)
+    const dbInfo = await prisma.$queryRaw`
+      SELECT 
+        current_database() as database_name,
+        current_user as database_user,
+        version() as database_version
+    `;
+    healthcheck.databaseInfo = dbInfo[0];
+    
+    res.json(healthcheck);
   } catch (error) {
-    res.status(500).json({ status: 'error', database: 'disconnected' });
+    healthcheck.status = 'error';
+    healthcheck.database = 'disconnected';
+    healthcheck.error = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json(healthcheck);
   }
 });
 

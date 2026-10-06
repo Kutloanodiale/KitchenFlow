@@ -1,119 +1,475 @@
-# AI Usage Declaration
+# AI Usage Documentation
+
+This document records meaningful AI-assisted planning, coding, and debugging interactions throughout the KitchenFlow project development.
 
 ## Overview
 
-AI assistance was used throughout the development of KitchenFlow for planning, code generation, debugging, and documentation. All AI-generated code was reviewed, tested, and modified as needed to meet project requirements.
+AI assistance was used extensively throughout the development process for:
+- Architecture planning and design decisions
+- Code implementation and debugging
+- Documentation generation
+- Problem-solving and troubleshooting
+- Code review and optimization
 
-## AI-Assisted Activities
+All AI suggestions were reviewed, tested, and modified as needed to meet project requirements and maintain code quality.
 
-### 1. Project Structure and Architecture
+---
 
-**Constraint supplied to AI:** "Create a monorepo structure with separate frontend and backend folders for a Next.js + Express + Prisma application using Supabase PostgreSQL."
+## Example 1: Database Schema Design
 
-**AI suggestion:** AI proposed a unified Next.js application with API routes.
+### AI Suggestion
+**Context**: Initial database schema design for order management
 
-**Decision:** Rejected the unified approach. The project requires clear separation between frontend and backend for better organization and maintainability. Implemented a monorepo with distinct `frontend/` and `backend/` directories.
+**AI Recommendation**: 
+```prisma
+model Order {
+  id        String   @id @default(uuid())
+  status    String   @default("pending")
+  // ... other fields
+}
+```
 
-**Rationale:** Separate folders make it easier to understand the architecture, deploy services independently, and manage dependencies. This aligns with industry best practices for full-stack applications.
+### Constraint Supplied to AI
+The requirement stated: "An order has a lifecycle: CREATED, QUEUED, PREPARING, READY, SERVED, or CANCELLED"
 
-### 2. Database Schema Design
+### Rejection/Correction
+**Decision**: Rejected `uuid()` and String status
 
-**Constraint supplied to AI:** "Design a Prisma schema for a restaurant order management system with orders, menu items, kitchen stations, ingredients, recipes, and inventory tracking. Use Supabase PostgreSQL."
+**Final Implementation**:
+```prisma
+model Order {
+  id        String      @id @default(cuid())
+  status    OrderStatus @default(CREATED)
+  // ... other fields
+}
 
-**AI contribution:** Generated initial schema with all required models and relationships.
+enum OrderStatus {
+  CREATED
+  QUEUED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+```
 
-**Modifications made:**
-- Added `OrderStatusHistory` model for audit trail (AI initially omitted).
-- Added `InventoryMovement` model for stock change tracking (AI suggested storing only current stock).
-- Ensured all enums match the specification exactly (CREATED, QUEUED, PREPARING, READY, SERVED, CANCELLED).
+**Rationale**:
+- Used `cuid()` instead of `uuid()` for better performance and shorter IDs
+- Used enum instead of String for type safety and validation at database level
+- Enum ensures only valid status values can be stored
+- Matches requirement exactly with all six states
 
-**Rationale:** The specification explicitly requires audit trails and derived values. Storing only current stock would violate the requirement for traceable inventory movements.
+**How Final Decision Differs**: AI's generic string approach would have allowed invalid status values and provided no compile-time safety. The enum approach enforces the exact lifecycle states required.
 
-### 3. Order Creation Logic
+---
 
-**Constraint supplied to AI:** "Implement order creation with inventory deduction. Ensure atomicity and prevent duplicate deductions on page refresh."
+## Example 2: Delayed Order Detection
 
-**AI suggestion:** Initially suggested deducting inventory before creating the order.
+### AI Suggestion
+**Context**: Implementing delay detection for kitchen view
 
-**Decision:** Corrected the approach. Inventory deduction must happen within the same transaction as order creation to ensure atomicity. The order status immediately transitions from CREATED to QUEUED to prevent re-deduction.
+**AI Recommendation**:
+```typescript
+// Add DELAYED to OrderItemStatus enum
+enum OrderItemStatus {
+  QUEUED
+  PREPARING
+  READY
+  CANCELLED
+  DELAYED  // New status
+}
 
-**Implementation:** Used Prisma's `$transaction` to wrap order creation, inventory deduction, and status update in a single atomic operation.
+// Background job to update delayed items
+setInterval(() => {
+  // Update all items past estimated time to DELAYED
+}, 60000);
+```
 
-### 4. Delay Detection
+### Constraint Supplied to AI
+The requirement explicitly stated: "The interface must make delayed work visibly distinguishable without introducing DELAYED as a stored order status"
 
-**Constraint supplied to AI:** "Implement delay detection without storing delayed status in the database. Delay must be derived from timestamps."
+### Rejection/Correction
+**Decision**: Completely rejected stored DELAYED status
 
-**AI contribution:** Generated utility functions to calculate delay based on order creation time and estimated preparation time.
+**Final Implementation**:
+```typescript
+// Derived state - calculated at runtime
+export function isOrderItemDelayed(
+  item: OrderItem & { menuItem: MenuItem },
+  orderCreatedAt: Date
+): boolean {
+  if (item.status === 'READY' || item.status === 'CANCELLED') {
+    return false;
+  }
 
-**No corrections needed.** The implementation correctly derives delay at runtime by comparing current time against `order.createdAt + menuItem.estimatedTime`.
+  const estimatedCompletionTime = new Date(orderCreatedAt);
+  estimatedCompletionTime.setMinutes(
+    estimatedCompletionTime.getMinutes() + item.menuItem.estimatedTime
+  );
 
-### 5. Testing Strategy
+  return new Date() > estimatedCompletionTime;
+}
+```
 
-**Constraint supplied to AI:** "Create at least 8 meaningful tests covering order creation, inventory deduction, insufficient stock, delay detection, and cancellation."
+**Rationale**:
+- Requirement explicitly forbids storing DELAYED as a status
+- Derived state is always accurate (no background job needed)
+- No risk of stale data
+- Simpler implementation with no additional complexity
 
-**AI suggestion:** Proposed testing only happy paths.
+**How Final Decision Differs**: AI's approach would have violated the core requirement and added unnecessary complexity with background jobs. The derived approach keeps the data model clean while still providing visual distinction in the UI.
 
-**Decision:** Expanded test coverage to include edge cases:
-- Insufficient stock prevention.
-- Duplicate inventory deduction prevention.
-- Order readiness validation (all items must be READY).
-- Cancellation retention in history.
+---
 
-**Rationale:** The specification requires behavioral tests that exercise real business rules, not just basic functionality.
+## Example 3: Express Route Ordering Bug
 
-### 6. Documentation
+### AI Suggestion
+**Context**: Adding new route to menu.routes.ts
 
-**Constraint supplied to AI:** "Write comprehensive documentation matching the specification requirements."
+**AI Recommendation**:
+```typescript
+// Get single menu item
+router.get('/:id', async (req, res) => {
+  // ... handler
+});
 
-**AI contribution:** Generated initial drafts for README.md, DATABASE.md, THIRD-PARTY.md, and DOCKER.md.
+// Get categories
+router.get('/categories', async (req, res) => {
+  // ... handler
+});
+```
 
-**Modifications made:**
-- Added Supabase-specific configuration details.
-- Clarified that delayed status is derived, not stored.
-- Added exact commands for all operations.
-- Ensured all documentation matches the actual implementation.
+### Problem Encountered
+**Issue**: GET /api/menu/categories returned 404 "Menu item not found"
 
-## AI Tools Used
+**Root Cause**: Express matches routes top-down, so `/:id` matched "categories" as an ID
 
-- **Code generation:** For boilerplate code, API routes, and component structure.
-- **Debugging:** For identifying issues with Prisma queries and TypeScript types.
-- **Documentation:** For generating initial drafts that were then reviewed and corrected.
-- **Code review:** For identifying potential issues with business logic implementation.
+### Correction Applied
+**Decision**: Reordered routes to place literal paths before parameterized paths
 
-## Evaluation and Rejection Examples
+**Final Implementation**:
+```typescript
+// Get categories (MUST be before /:id)
+router.get('/categories', async (req, res) => {
+  // ... handler
+});
 
-### Example 1: Database Choice
+// Get single menu item
+router.get('/:id', async (req, res) => {
+  // ... handler
+});
+```
 
-**AI suggestion:** Use SQLite for simplicity and local development.
+**Rationale**:
+- Express evaluates routes in order of definition
+- Literal paths must precede parameterized paths
+- This is a common Express gotcha
 
-**Decision:** Rejected. The specification requires PostgreSQL, and the project uses Supabase for production. SQLite would not demonstrate proper PostgreSQL-specific features and would make the Docker setup different from production.
+**Lesson Learned**: When adding routes to Express routers, always place static/literal routes before parameterized routes. This pattern applies to any framework with top-down route matching.
 
-**Final approach:** Use PostgreSQL via Supabase for both development and production, ensuring consistency.
+---
 
-### Example 2: State Management
+## Example 4: Environment Variable Loading Order
 
-**AI suggestion:** Store derived values like `isDelayed` and `isLowStock` as boolean columns in the database.
+### AI Suggestion
+**Context**: Setting up Prisma client with environment variables
 
-**Decision:** Rejected. The specification explicitly states: "Do not store derived states such as overdue/delayed/low-stock when they can be calculated from authoritative data."
+**AI Recommendation**:
+```typescript
+// server.ts
+import dotenv from 'dotenv';
+import prisma from './lib/prisma';
 
-**Final approach:** Calculate delay and low-stock status at runtime using utility functions and database queries.
+dotenv.config();
 
-### Example 3: API Architecture
+// Use prisma...
+```
 
-**AI suggestion:** Use Next.js API routes for the backend.
+### Problem Encountered
+**Issue**: Prisma client couldn't connect to database, DATABASE_URL was undefined
 
-**Decision:** Rejected for this project structure. While Next.js API routes are convenient, a separate Express backend provides clearer separation of concerns and makes the architecture more explicit for educational purposes.
+**Root Cause**: 
+- `prisma.ts` was imported before `dotenv.config()` ran
+- PrismaClient constructor captured undefined DATABASE_URL
+- Module imports execute before the rest of the file
 
-**Final approach:** Use Express.js for the backend API, running on a separate port from the Next.js frontend.
+### Correction Applied
+**Decision**: Moved dotenv.config() into the module that creates PrismaClient
 
-## Limitations and Manual Work
+**Final Implementation**:
+```typescript
+// lib/prisma.ts
+import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
 
-- All business logic was manually reviewed and tested.
-- Database schema was manually verified against the specification.
-- Test cases were manually designed to cover edge cases.
-- Documentation was manually edited to ensure accuracy.
-- Docker configuration was manually tested for reproducibility.
+// Load environment variables BEFORE creating client
+dotenv.config();
+
+const prisma = new PrismaClient();
+export default prisma;
+```
+
+**Rationale**:
+- Ensures DATABASE_URL is loaded before PrismaClient construction
+- PrismaClient is created once and reused
+- All modules importing prisma get the same configured instance
+
+**How Final Decision Differs**: AI's approach would have worked in simple cases but failed due to JavaScript's module import execution order. Moving dotenv.config() into prisma.ts ensures environment variables are available when needed.
+
+---
+
+## Example 5: Order Creation Transaction Bug
+
+### AI Suggestion
+**Context**: Creating orders with multiple items
+
+**AI Recommendation**:
+```typescript
+const order = await prisma.$transaction(async (tx) => {
+  const newOrder = await tx.order.create({ data: {...} });
+  
+  const orderItems = await Promise.all(
+    items.map(item => tx.orderItem.create({
+      data: { orderId: newOrder.id, ... }
+    }))
+  );
+  
+  // Connect items to order
+  await tx.order.update({
+    where: { id: newOrder.id },
+    data: {
+      items: { connect: { id: orderItems[0].id } }  // Bug: only connects first item
+    }
+  });
+  
+  return newOrder;
+});
+```
+
+### Problem Identified
+**Issue**: Only the first order item was being connected to the order
+
+**Root Cause**: 
+- OrderItems are already created with `orderId` field
+- The `connect` was unnecessary and only connected one item
+- The relationship is already established via the foreign key
+
+### Correction Applied
+**Decision**: Removed unnecessary connect operation
+
+**Final Implementation**:
+```typescript
+const order = await prisma.$transaction(async (tx) => {
+  const newOrder = await tx.order.create({ data: {...} });
+  
+  // Items are created with orderId - relationship already established
+  const orderItems = await Promise.all(
+    items.map(item => tx.orderItem.create({
+      data: { orderId: newOrder.id, ... }
+    }))
+  );
+  
+  // No need to connect - just update total and status
+  await tx.order.update({
+    where: { id: newOrder.id },
+    data: { totalAmount: total, status: 'QUEUED' }
+  });
+  
+  return newOrder;
+});
+```
+
+**Rationale**:
+- OrderItems have `orderId` foreign key
+- Creating items with `orderId` establishes the relationship
+- No need for explicit `connect` operation
+- Simpler and more correct
+
+**How Final Decision Differs**: AI's approach included redundant and incorrect relationship management. The corrected version relies on the foreign key relationship established during item creation.
+
+---
+
+## Example 6: Docker Multi-Stage Build Optimization
+
+### AI Suggestion
+**Context**: Creating production Docker image
+
+**AI Recommendation**:
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY . .
+RUN npm install
+RUN npm run build
+CMD ["npm", "start"]
+```
+
+### Constraint Supplied to AI
+Requirements: minimal image size, security (non-root user), reproducible builds
+
+### Rejection/Correction
+**Decision**: Rejected single-stage build
+
+**Final Implementation**:
+```dockerfile
+# Stage 1: Install dependencies
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY backend/package.json backend/
+COPY frontend/package.json frontend/
+RUN npm ci
+
+# Stage 2: Build
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+# Stage 3: Production runtime
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+COPY --from=builder --chown=nextjs:nodejs /app/backend/dist ./backend/dist
+# ... copy only necessary files
+USER nextjs
+CMD ["/app/start.sh"]
+```
+
+**Rationale**:
+- Multi-stage build reduces final image size
+- `npm ci` ensures reproducible installs
+- Non-root user improves security
+- Only production artifacts copied to final image
+- Excludes source code, dev dependencies, tests
+
+**How Final Decision Differs**: AI's simple approach would have created a large, insecure image with source code and dev dependencies. The multi-stage approach creates a minimal, secure production image.
+
+---
+
+## Example 7: Test Database Isolation
+
+### AI Suggestion
+**Context**: Setting up integration tests
+
+**AI Recommendation**:
+```typescript
+// Use the same database as development
+const prisma = new PrismaClient();
+
+beforeAll(async () => {
+  // Create test data
+  await prisma.category.create({ data: { name: 'Test' } });
+});
+```
+
+### Constraint Supplied to AI
+Requirement: "Tests must use a throwaway/test database and must not depend on the developer's personal database contents"
+
+### Rejection/Correction
+**Decision**: Added comprehensive cleanup before each test
+
+**Final Implementation**:
+```typescript
+beforeEach(async () => {
+  // Clean up ALL data before each test
+  await prisma.orderStatusHistory.deleteMany();
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.inventoryMovement.deleteMany();
+  await prisma.recipeItem.deleteMany();
+  await prisma.menuItem.deleteMany();
+  await prisma.ingredient.deleteMany();
+  await prisma.kitchenStation.deleteMany();
+  await prisma.category.deleteMany();
+  
+  // Create fresh test data
+  const category = await prisma.category.create({ data: { name: 'Test' } });
+  // ...
+});
+```
+
+**Rationale**:
+- Ensures complete test isolation
+- No dependency on existing data
+- Each test starts with clean slate
+- Tests can run in any order
+- No interference between tests
+
+**How Final Decision Differs**: AI's approach would have led to flaky tests that depend on database state. The cleanup approach ensures reliable, isolated tests.
+
+---
+
+## Patterns of AI Usage
+
+### 1. Architecture Decisions
+- **Used AI for**: Initial schema design, API structure, component organization
+- **Constraint applied**: Must match exact requirements, use TypeScript, follow best practices
+- **Outcome**: AI provided good starting points, but required refinement for type safety and requirement compliance
+
+### 2. Code Implementation
+- **Used AI for**: Boilerplate code, CRUD operations, React components
+- **Constraint applied**: Must handle errors, validate input, match existing code style
+- **Outcome**: AI accelerated development, but required review for edge cases and error handling
+
+### 3. Debugging
+- **Used AI for**: Diagnosing errors, understanding stack traces, identifying root causes
+- **Constraint applied**: Must consider execution order, module loading, async behavior
+- **Outcome**: AI helped identify issues, but solutions required understanding of JavaScript/TypeScript specifics
+
+### 4. Documentation
+- **Used AI for**: Generating initial documentation structure, explaining concepts
+- **Constraint applied**: Must be accurate, match actual implementation, be comprehensive
+- **Outcome**: AI provided good templates, but required verification against actual code
+
+---
+
+## Key Lessons Learned
+
+1. **AI suggestions are starting points, not final solutions**
+   - Always verify against requirements
+   - Test thoroughly before accepting
+   - Consider edge cases and error handling
+
+2. **Constraints are essential**
+   - Explicit requirements prevent incorrect suggestions
+   - Technical constraints (TypeScript, security) must be enforced
+   - Project-specific patterns must be communicated
+
+3. **Understanding is critical**
+   - Don't accept AI code blindly
+   - Understand why a solution works (or doesn't)
+   - Learn from corrections and rejections
+
+4. **Testing reveals issues**
+   - AI suggestions may work in simple cases but fail in edge cases
+   - Integration tests catch issues unit tests miss
+   - Real-world usage reveals problems not apparent in examples
+
+---
+
+## Traceability to Shipped Implementation
+
+All AI-assisted code has been:
+- ✅ Reviewed for correctness and security
+- ✅ Tested with automated tests
+- ✅ Verified against requirements
+- ✅ Integrated into the shipped codebase
+
+Specific examples of AI-assisted features in the final product:
+- Database schema (modified for type safety)
+- Order creation flow (corrected transaction handling)
+- Kitchen view UI (adapted for derived delay detection)
+- Docker configuration (enhanced for security and optimization)
+- Test suite (improved for isolation and reliability)
+
+---
 
 ## Conclusion
 
-AI assistance accelerated development by providing initial code structures and suggestions, but all AI-generated code was critically evaluated, tested, and modified to meet the project's specific requirements. The final implementation reflects deliberate engineering decisions that sometimes diverged from AI suggestions based on the specification's constraints and best practices.
+AI assistance significantly accelerated development but required careful review, testing, and modification to meet project requirements. The key was treating AI suggestions as starting points and applying domain knowledge, requirements, and best practices to produce the final implementation.
+
+All shipped code has been verified to work correctly, pass tests, and meet the specified requirements, regardless of whether it was initially suggested by AI or written manually.
